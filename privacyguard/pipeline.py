@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from models import Finding, Report, Warning, level_for
 from . import compliance, llm, recommend, scoring
-from .context import context_scan, merge_overlapping
+from .context import _context_scan_status, merge_overlapping
 from .rules import pattern_scan
 
 EXPOSURE = {"Private (a friend or family)": 0.8, "Unknown": 1.0, "AI tool": 1.2, "Public": 1.5}
@@ -61,7 +61,7 @@ def run_scan(text: str, recipient: str, filename: str | None = None):
     job = ScanJob(text)
 
     # FR-2 + FR-3
-    ctx_hits, ctx_ran = context_scan(text, recipient)
+    ctx_hits, ctx_ran, ctx_partial = _context_scan_status(text, recipient)
     hits = merge_overlapping(pattern_scan(text), ctx_hits)
 
     # FR-4 items + FR-5
@@ -72,26 +72,30 @@ def run_scan(text: str, recipient: str, filename: str | None = None):
         score = round(scoring.item_score(h.sensitivity, h.confidence, exposure), 1)
         line = text.count("\n", 0, h.start) + 1
         action = recommend.recommend(h.category, score)
+        safe_reason = ("The surrounding context indicates this may be sensitive."
+                       if h.source == "context" else "")
         findings.append(Finding(fid, h.category, mask_value(h.category, h.value), f"line {line}",
                                 h.sensitivity, h.confidence, exposure, score, h.source,
-                                recommend.explain(h.category, f"line {line}", action, h.reason), action,
-                                reason=h.reason))
+                                recommend.explain(h.category, f"line {line}", action, safe_reason), action,
+                                reason=safe_reason))
 
     # FR-4 combinations (single-document scan: all findings are treated as one group)
     cats = {f.category for f in findings}
     cs = scoring.combo_score([f.score for f in findings], cats) if findings else None
-    if cs is not None:
-        quasi = sorted(cats & scoring.QUASI)
-        findings.append(Finding(uuid.uuid4().hex[:8], "combination", " + ".join(quasi), "multiple locations",
-                                0, 1.0, exposure, round(cs, 1), "combination",
-                                recommend.explain("combination", "multiple locations", "Generalize"), "Generalize"))
-
     findings.sort(key=lambda f: -f.score)
-    overall = round(scoring.overall_score([f.score for f in findings]), 1)
+    overall_scores = [f.score for f in findings]
+    if cs is not None:
+        overall_scores.append(round(cs, 1))
+    overall = round(scoring.overall_score(overall_scores), 1)
 
     # FR-6
     warns = [Warning(name, compliance.NOTE, ids)
              for name, ids in compliance.check(text, [(f.id, f.category) for f in findings])]
+    if cs is not None:
+        quasi = sorted(cats & scoring.QUASI)
+        if quasi:
+            ids = [f.id for f in findings if f.category in quasi]
+            warns.append(Warning("Combination of quasi-identifiers", compliance.NOTE, ids))
 
     # FR-7
     n = len(findings)
@@ -100,6 +104,8 @@ def run_scan(text: str, recipient: str, filename: str | None = None):
     coverage = []
     if not llm.available() or not ctx_ran:
         coverage.append("The AI context check was unavailable (is Ollama running?). Only pattern rules ran.")
+    elif ctx_partial:
+        coverage.append("The AI context check completed only partially. Some sentences may not have been analyzed.")
     if filename and not filename.lower().endswith((".txt", ".md", ".csv")):
         coverage.append("Only plain text was read from this file.")
     return Report(overall, level_for(overall), verdict, recipient, warns, findings, coverage), job
@@ -111,7 +117,7 @@ def preview_changes(job: ScanJob, findings):
     rows = []
     for f in sorted((f for f in findings if f.id in job.raw), key=lambda f: job.raw[f.id][0]):
         raw = job.raw[f.id][2]
-        after = f.masked_value if f.decision == "Mask" else _replacement(job, f, raw, labels)
+        after = _replacement(job, f, raw, labels)
         rows.append({"Location": f.location, "Item": f.category, "Before": f.masked_value,
                      "Fix": f.decision, "After": after})
     return rows

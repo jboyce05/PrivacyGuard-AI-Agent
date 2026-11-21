@@ -28,6 +28,10 @@ def valid_ssn(s: str) -> bool:
     return a not in ("000", "666") and not a.startswith("9") and g != "00" and n != "0000"
 
 
+def valid_ipv4(s: str) -> bool:
+    return all(0 <= int(octet) <= 255 for octet in s.split("."))
+
+
 # category: (regex, base sensitivity, keywords, validator)
 RULES = {
     "ssn": (r"\b\d{3}-\d{2}-\d{4}\b", 10, ["ssn", "social security"], valid_ssn),
@@ -36,7 +40,7 @@ RULES = {
     "phone": (r"(?<!\d)(?:\+?1[ -.])?\(?\d{3}\)?[ -.]\d{3}[ -.]\d{4}\b", 5, ["phone", "call", "cell", "mobile"], None),
     "birth_date": (r"\b\d{1,2}/\d{1,2}/\d{4}\b", 6, ["dob", "born", "birth", "birthday"], None),
     "password": (r"(?i)(?:password|passwd|pwd)\s*[:=]\s*\S+", 10, ["password"], None),
-    "ip_address": (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", 3, ["ip"], None),
+    "ip_address": (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", 3, ["ip"], valid_ipv4),
 }
 
 

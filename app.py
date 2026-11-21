@@ -175,7 +175,8 @@ def find(fid):
 # ---------- session handling (DR-1) ----------
 def wipe_session(msg=None, toast=False):
     pipe.wipe(st.session_state.get("job"))
-    for k in ("job", "report", "saved_copy", "filename", "active_id"):
+    st.session_state["msg"] = ""
+    for k in ("upload", "job", "report", "saved_copy", "filename", "active_id"):
         st.session_state.pop(k, None)
     if msg:
         st.session_state["toast" if toast else "notice"] = (
@@ -197,6 +198,9 @@ def run_scan():
             st.session_state["notice"] = ("error", "That file is over 10 MB.")
             return
         content, fname = upload.getvalue().decode("utf-8", errors="replace"), upload.name
+    if len(content.encode("utf-8")) > MAX_BYTES:
+        st.session_state["notice"] = ("error", "That message is over 10 MB.")
+        return
     if not content.strip():
         st.session_state["notice"] = ("warning", "Add a message or a file first.")
         return

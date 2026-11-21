@@ -2,6 +2,7 @@
 each detail is identifiable + sensitive. File text is treated as DATA; the reply is schema-forced."""
 from __future__ import annotations
 import re
+import math
 from . import llm
 from .rules import Hit
 
@@ -58,32 +59,59 @@ def _sentences(text: str):
             yield m.start(), m.group()
 
 
-def context_scan(text: str, recipient: str) -> tuple[list[Hit], bool]:
-    """Returns (hits, ran). ran=False means the model was unavailable (the report notes the gap)."""
-    hits, ran = [], False
+def _context_scan_status(text: str, recipient: str) -> tuple[list[Hit], bool, bool]:
+    """Returns (hits, ran, partial_failure)."""
+    hits, ran, partial_failure = [], False, False
     for i, (off, sent) in enumerate(_sentences(text)):
         if i >= MAX_SENTENCES:
             break
         r = llm.call_model(SYSTEM, f"Recipient: {recipient}\n<sentence>{sent.strip()}</sentence>", SCHEMA)
         if r is None:
-            if not ran:
-                return hits, False
+            partial_failure = True
             continue
         ran = True
-        for it in r.get("items", []):
-            conf = float(it.get("confidence", 0))
-            idx = sent.find(it.get("text", ""))
-            if not (it["is_identifiable"] and it["is_sensitive"] and conf >= 0.5) or idx < 0 or not it["text"]:
+        if not isinstance(r, dict) or not isinstance(r.get("items"), list):
+            continue
+        for it in r["items"]:
+            if not isinstance(it, dict):
                 continue
-            cat = it["category"]
-            hits.append(Hit(cat, off + idx, off + idx + len(it["text"]), it["text"], conf,
-                            SENS_DEFAULT.get(cat, 4), "context", it.get("reason", "")))
+            raw_conf = it.get("confidence", 0)
+            if isinstance(raw_conf, bool):
+                continue
+            try:
+                conf = float(raw_conf)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if isinstance(conf, bool) or not math.isfinite(conf):
+                continue
+            value = it.get("text")
+            cat = it.get("category")
+            identifiable = it.get("is_identifiable")
+            sensitive = it.get("is_sensitive")
+            if (not isinstance(value, str) or not value or cat not in CATEGORIES
+                    or identifiable is not True or sensitive is not True or conf < 0.5):
+                continue
+            idx = sent.find(value)
+            if idx < 0:
+                continue
+            hits.append(Hit(cat, off + idx, off + idx + len(value), value, conf,
+                            SENS_DEFAULT.get(cat, 4), "context",
+                            "The surrounding context indicates this may be sensitive."))
+    return hits, ran, partial_failure
+
+
+def context_scan(text: str, recipient: str) -> tuple[list[Hit], bool]:
+    """Compatibility wrapper: return hits and whether at least one model call succeeded."""
+    hits, ran, _ = _context_scan_status(text, recipient)
     return hits, ran
 
 
 def merge_overlapping(pattern: list[Hit], context: list[Hit]) -> list[Hit]:
     """Pattern hits win; drop context hits that overlap a pattern hit or a higher-confidence context hit."""
-    out = list(pattern)
+    out = []
+    for h in sorted(pattern, key=lambda h: (-h.sensitivity, -(h.end - h.start), h.start, h.end)):
+        if not any(h.start < o.end and o.start < h.end for o in out):
+            out.append(h)
     for h in sorted(context, key=lambda h: -h.confidence):
         if not any(h.start < o.end and o.start < h.end for o in out):
             out.append(h)
