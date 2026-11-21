@@ -1,0 +1,38 @@
+# PrivacyGuard AI dashboard settings. Streamlit reads this automatically from the repo root.
+
+[browser]
+# The app promises that nothing leaves the device, so turn off Streamlit's usage telemetry.
+gatherUsageStats = false
+
+[server]
+# Same 10 MB limit the dashboard tells users about, enforced by the uploader itself.
+maxUploadSize = 10
+
+[client]
+# Hide developer menu items from people using the dashboard.
+toolbarMode = "minimal"
+
+# "Security console" look: dark only, neon cyan accent. Fonts are system stacks, so nothing is
+# fetched from a font CDN (keeps the "nothing is sent" promise and renders the same offline).
+[theme]
+base = "dark"
+primaryColor = "#22d3ee"
+backgroundColor = "#060a13"
+secondaryBackgroundColor = "#0d1424"
+textColor = "#d6e2ff"
+borderColor = "#1d2a44"
+linkColor = "#22d3ee"
+font = "'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif"
+headingFont = "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
+codeFont = "ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
+codeBackgroundColor = "#0a1120"
+codeTextColor = "#7dd3fc"
+baseRadius = "0.55rem"
+buttonRadius = "0.55rem"
+showWidgetBorder = true
+redColor = "#f43f5e"
+orangeColor = "#fb923c"
+yellowColor = "#facc15"
+greenColor = "#34d399"
+dataframeHeaderBackgroundColor = "#0a1120"
+dataframeBorderColor = "#1d2a44"

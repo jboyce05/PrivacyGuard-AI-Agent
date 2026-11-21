@@ -27,8 +27,8 @@ def test_app_flow():
     at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "app.py"), default_timeout=20).run()
     assert not at.exception
     at.text_area(key="msg").set_value(SAMPLE).run()
-    [b for b in at.sidebar.button if b.label == "Scan"][0].click().run()
-    assert not at.exception and "Critical" in at.markdown[0].value + at.markdown[1].value
+    [b for b in at.button if b.label == "Scan"][0].click().run()
+    assert not at.exception and "Critical" in " ".join(m.value for m in at.markdown)
     [b for b in at.button if b.label.startswith("Approve")][0].click().run()
     assert not at.exception
     [b for b in at.button if b.label.startswith("Done")][0].click().run()
