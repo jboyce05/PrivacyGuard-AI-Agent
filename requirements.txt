@@ -1,0 +1,5 @@
+streamlit
+requests
+pytest
+# optional, improves context step:
+# spacy  (then: python -m spacy download en_core_web_sm)
