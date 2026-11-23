@@ -1,4 +1,4 @@
-# 🛡️ PrivacyGuard AI
+PrivacyGuard AI
 
 **A local-first privacy agent that scans text for sensitive information, scores the risk, and helps you fix it before you share it.**
 
@@ -134,6 +134,4 @@ Unit tests never call Ollama; the test setup stubs out the model, so they run wi
 - The AI context check analyzes up to 60 sentences per scan and uses a small 3B-parameter model, so it can miss details or misjudge context. Treat results as a strong first pass, not a guarantee.
 - Compliance warnings are prompts for review, not legal advice.
 
-## Course
 
-COMP 422 AI agent project.
